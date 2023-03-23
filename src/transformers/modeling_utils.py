@@ -87,6 +87,7 @@ if is_accelerate_available():
         offload_weight,
         save_offload_index,
         set_module_tensor_to_device,
+        move_offloads,
     )
 
     if version.parse(accelerate_version) > version.parse("0.11.0"):
@@ -2087,6 +2088,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
         commit_hash = kwargs.pop("_commit_hash", None)
         variant = kwargs.pop("variant", None)
         use_safetensors = kwargs.pop("use_safetensors", None if is_safetensors_available() else False)
+        main_device = kwargs.pop("main_device", None)
 
         if trust_remote_code is True:
             logger.warning(
@@ -2694,7 +2696,8 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
 
         # Dispatch model with hooks on all devices if necessary
         if device_map is not None:
-            dispatch_model(model, device_map=device_map, offload_dir=offload_folder, offload_index=offload_index)
+            dispatch_model(model, device_map=device_map, offload_dir=offload_folder, offload_index=offload_index,
+                           main_device=main_device)
 
         if output_loading_info:
             if loading_info is None:
@@ -2995,11 +2998,12 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
                     # We need to add the prefix of the base model
                     prefix = cls.base_model_prefix
                     if not is_safetensors:
-                        for weight_name in offload_index:
-                            shutil.move(
-                                os.path.join(offload_folder, f"{weight_name}.dat"),
-                                os.path.join(offload_folder, f"{prefix}.{weight_name}.dat"),
-                            )
+                        # for weight_name in offload_index:
+                        #     shutil.move(
+                        #         os.path.join(offload_folder, f"{weight_name}.dat"),
+                        #         os.path.join(offload_folder, f"{prefix}.{weight_name}.dat"),
+                        #     )
+                        move_offloads(offload_folder, prefix, offload_index)
                     offload_index = {f"{prefix}.{key}": value for key, value in offload_index.items()}
                 if not is_safetensors:
                     save_offload_index(offload_index, offload_folder)
